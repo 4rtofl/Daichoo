@@ -15,7 +15,7 @@
 		"GITHUB_REPOSITORY": "4rtoflow/Daichoo",
 		"GITHUB_BRANCH": "main",
 		// 台帳にコミットするGitHub AppのClient ID(README.md「準備」の2)。秘密鍵はシークレットに入れる
-		"GITHUB_APP_CLIENT_ID": ""
+		"GITHUB_APP_CLIENT_ID": "Iv23liUcIsfP5k8hGW1s"
 	},
 	// 値は .env に書く(.env.example を参照)。初めてデプロイするときに --secrets-file .env を付けると、
 	// .env の値がWorkerのシークレットとして設定される。あとで変えるときは「pnpm exec wrangler secret put <名前>」を使う
