@@ -44,7 +44,11 @@ function writeChannel() {
 /** 最初に送ったメッセージの埋め込み */
 function firstEmbed() {
 	const embeds = discord.messages[0]?.body.embeds as
-		| { description?: string; url?: string }[]
+		| {
+				description?: string;
+				url?: string;
+				fields?: { name: string; value: string }[];
+		  }[]
 		| undefined;
 	return embeds?.[0];
 }
@@ -82,9 +86,10 @@ describe("settle", () => {
 		expect(discord.messages).toHaveLength(1);
 		expect(discord.messages[0]?.channelId).toBe(CHANNEL_ID);
 		const embed = firstEmbed();
-		expect(embed?.description).toContain(
-			`<@${DEBTOR.id}> から <@${PAYER.id}> へ **1,000円**`,
-		);
+		expect(embed?.fields).toEqual([
+			{ name: "bee", value: "ama へ 1,000円", inline: false },
+			{ name: "ama", value: "支払いなし", inline: false },
+		]);
 		expect(embed?.url).toBe(
 			"https://github.com/o/r/blob/abc/ledger/2026-10.tsv",
 		);

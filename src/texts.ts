@@ -79,21 +79,26 @@ export const COMMON_TEXTS = {
 		"うまく処理できませんでした。少し待ってから、もう一度実行してください。",
 } as const;
 
-/** 毎月の精算の結果(埋め込み) */
+/**
+ * 毎月の精算の結果(埋め込み)。人ごとのFieldのタイトルに表示名、値に支払いを1行ずつ書く。
+ * 例: タイトル「あま」、値「びー へ 1,000円」
+ */
 export const SETTLEMENT_TEXTS = {
 	title: (month: string) => `${monthLabel(month)}の精算`,
 	continuedTitle: (month: string) => `${monthLabel(month)}の精算(続き)`,
 	/** 終わっていない月を /seisan で見たときに、タイトルの後ろに付ける */
 	inProgressSuffix: "(途中)",
-	intro: "次のとおり支払ってください。",
+	/** 終わっていない月を /seisan で見たときに、Fieldの上に書く前置き */
 	inProgressIntro:
 		"今日までの記録で精算すると、次のとおりです。月末までの記録で変わります。",
-	transfer: (fromId: string, toId: string, amount: number) =>
-		`<@${fromId}> から <@${toId}> へ **${formatYen(amount)}**`,
-	note: "支払いの回数が少なくなるように、貸し借りをまとめています。",
+	/** 1つの支払い。toNameは支払う相手の表示名 */
+	transfer: (toName: string, amount: number) =>
+		`${toName} へ ${formatYen(amount)}`,
+	/** 支払う相手がいない人のFieldの値 */
+	noPayment: "支払いなし",
+	/** 支払いが多くて、1人分が1つのFieldに収まらないときの、2つ目からのタイトル */
+	continuedField: (name: string) => `${name}(続き)`,
 	noEntries: "この月の記録はありません。",
-	balanced:
-		"おごった額とおごられた額が、全員で釣り合っています。支払いはありません。",
 	footer: (entryCount: number, total: number) =>
 		`記録 ${entryCount}件、合計 ${formatYen(total)}`,
 } as const;
