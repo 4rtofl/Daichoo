@@ -6,7 +6,14 @@ import { type Fetch, sleep } from "../http.ts";
  * https://docs.github.com/en/rest/repos/contents
  */
 
-const GITHUB_API_BASE = "https://api.github.com";
+export const GITHUB_API_BASE = "https://api.github.com";
+
+/** GitHubのREST APIに送るリクエストに、いつも付けるヘッダー */
+export const GITHUB_HEADERS = {
+	Accept: "application/vnd.github+json",
+	"User-Agent": "Daichoo",
+	"X-GitHub-Api-Version": "2022-11-28",
+} as const;
 
 /** 書き換えが別の書き換えとぶつかったときに、読み直してやり直す回数の上限 */
 const MAX_ATTEMPTS = 5;
@@ -16,8 +23,11 @@ export interface GitHubRepository {
 	repository: string;
 	/** 書き込むブランチ */
 	branch: string;
-	/** リポジトリのContentsを読み書きできるトークン */
-	token: string;
+	/**
+	 * リポジトリのContentsを読み書きできるトークンを返す。
+	 * GitHub Appのトークンには期限があるので、リクエストのたびに聞く(src/github/app-auth.ts)
+	 */
+	token: () => Promise<string>;
 }
 
 /** ファイルの中身と、そのファイルを書き換えるときに渡すSHA(どの版を書き換えるかを示す) */
@@ -175,10 +185,8 @@ export class GitHubContents {
 		body?: unknown,
 	): Promise<Response> {
 		const headers: Record<string, string> = {
-			Accept: "application/vnd.github+json",
-			Authorization: `Bearer ${this.repository.token}`,
-			"User-Agent": "Daichoo",
-			"X-GitHub-Api-Version": "2022-11-28",
+			...GITHUB_HEADERS,
+			Authorization: `Bearer ${await this.repository.token()}`,
 		};
 		if (body !== undefined) {
 			headers["Content-Type"] = "application/json";
@@ -209,7 +217,8 @@ export class GitHubConflictError extends GitHubApiError {
 	}
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
+/** GitHubのAPIが返したエラーの説明を読む */
+export async function readErrorMessage(response: Response): Promise<string> {
 	const text = await response.text();
 	try {
 		const data = JSON.parse(text) as { message?: unknown };

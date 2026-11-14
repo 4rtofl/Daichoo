@@ -12,6 +12,7 @@ import {
 } from "../discord/constants.ts";
 import { verifyDiscordRequest } from "../discord/verify.ts";
 import type { Env, WorkerContext } from "../env.ts";
+import { GitHubAppAuth } from "../github/app-auth.ts";
 import { GitHubContents } from "../github/contents.ts";
 import type { Fetch } from "../http.ts";
 import { COMMON_TEXTS } from "../texts.ts";
@@ -67,6 +68,15 @@ function handleCommand(
 	}
 
 	try {
+		// 台帳には、GitHub Appとしてコミットする。トークンは、GitHubを使うときに初めて発行してもらう
+		const githubApp = new GitHubAppAuth(
+			{
+				clientId: env.GITHUB_APP_CLIENT_ID,
+				privateKey: env.GITHUB_APP_PRIVATE_KEY,
+			},
+			env.GITHUB_REPOSITORY,
+			fetch,
+		);
 		const context: CommandContext = {
 			// サーバーでのスラッシュコマンドであることは、すぐ上で確かめた
 			interaction:
@@ -76,7 +86,7 @@ function handleCommand(
 				{
 					repository: env.GITHUB_REPOSITORY,
 					branch: env.GITHUB_BRANCH,
-					token: env.GITHUB_TOKEN,
+					token: () => githubApp.token(),
 				},
 				fetch,
 			),

@@ -10,8 +10,10 @@ export interface Env {
 	GITHUB_REPOSITORY: string;
 	/** 台帳を書き込むブランチ */
 	GITHUB_BRANCH: string;
-	/** 台帳のリポジトリのContentsを読み書きできる、GitHubのトークン */
-	GITHUB_TOKEN: string;
+	/** 台帳に書き込むGitHub AppのClient ID。Botは、このAppとしてコミットする */
+	GITHUB_APP_CLIENT_ID: string;
+	/** GitHub Appの秘密鍵(PEM) */
+	GITHUB_APP_PRIVATE_KEY: string;
 }
 
 /** Workerの実行コンテキストのうち、使うものだけ。返事を返した後も、終わるまで処理を続けさせる */

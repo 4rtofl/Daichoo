@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from "node:crypto";
 import type {
 	APIApplicationCommandInteractionDataBasicOption,
 	APIEmbed,
@@ -67,9 +68,24 @@ export function testEnv(publicKeyHex: string): Env {
 		DISCORD_GUILD_ID: GUILD_ID,
 		GITHUB_REPOSITORY: REPOSITORY,
 		GITHUB_BRANCH: "main",
-		GITHUB_TOKEN: "test-github-token",
+		GITHUB_APP_CLIENT_ID: TEST_APP_CLIENT_ID,
+		GITHUB_APP_PRIVATE_KEY: TEST_APP_KEY.pkcs1,
 	};
 }
+
+export const TEST_APP_CLIENT_ID = "Iv23test";
+
+/** テスト用のGitHub Appの鍵。GitHubからダウンロードする形(PKCS#1)と、PKCS#8の形のPEM */
+export const TEST_APP_KEY = (() => {
+	const { privateKey, publicKey } = generateKeyPairSync("rsa", {
+		modulusLength: 2048,
+	});
+	return {
+		pkcs1: privateKey.export({ type: "pkcs1", format: "pem" }).toString(),
+		pkcs8: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+		publicKey,
+	};
+})();
 
 /** waitUntilに渡された処理を集め、テストで終わるまで待てるようにする */
 export function createContext() {
@@ -122,6 +138,8 @@ export interface RecordedRequest {
 	method: string;
 	url: string;
 	body: unknown;
+	/** Authorizationヘッダー。なければnull */
+	authorization: string | null;
 }
 
 /** GitHubのContents APIの偽物。ファイルを覚えておき、SHAが古い書き込みは本物と同じく409にする */
@@ -132,7 +150,43 @@ export class FakeGitHub {
 	conflictsToInject = 0;
 	/** trueなら、どのリクエストにも500を返す */
 	failing = false;
+	/** GitHub Appのインストールの番号と、発行するトークン */
+	readonly installationId = 4242;
+	readonly installationToken = "ghs_test_installation_token";
+	/** falseなら、Appがリポジトリにインストールされていないことにする */
+	appInstalled = true;
 	private nextSha = 1;
+
+	/** GitHub Appの認証(インストールの確認とトークンの発行)。JWTが付いていなければ401にする */
+	private handleApp(request: RecordedRequest): Response | null {
+		const installationUrl = `https://api.github.com/repos/${REPOSITORY}/installation`;
+		const tokenUrl = `https://api.github.com/app/installations/${this.installationId}/access_tokens`;
+		if (request.url !== installationUrl && request.url !== tokenUrl) {
+			return null;
+		}
+		// JWTは「ヘッダー.中身.署名」の3つに分かれている。署名が正しいかは test/github-app.test.ts で確かめる
+		if (!/^Bearer [\w-]+\.[\w-]+\.[\w-]+$/.test(request.authorization ?? "")) {
+			return Response.json(
+				{ message: "A JSON web token could not be decoded" },
+				{ status: 401 },
+			);
+		}
+		if (request.url === installationUrl && request.method === "GET") {
+			return this.appInstalled
+				? Response.json({ id: this.installationId })
+				: Response.json({ message: "Not Found" }, { status: 404 });
+		}
+		if (request.url === tokenUrl && request.method === "POST") {
+			return Response.json(
+				{
+					token: this.installationToken,
+					expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+				},
+				{ status: 201 },
+			);
+		}
+		return Response.json({ message: "Method Not Allowed" }, { status: 405 });
+	}
 
 	setFile(path: string, content: string): void {
 		this.files.set(path, { content, sha: `sha${this.nextSha++}` });
@@ -143,12 +197,20 @@ export class FakeGitHub {
 	}
 
 	handle(request: RecordedRequest): Response | null {
+		if (this.failing && request.url.startsWith("https://api.github.com/")) {
+			return Response.json({ message: "Server Error" }, { status: 500 });
+		}
+		const app = this.handleApp(request);
+		if (app) {
+			return app;
+		}
 		const prefix = `https://api.github.com/repos/${REPOSITORY}/contents/`;
 		if (!request.url.startsWith(prefix)) {
 			return null;
 		}
-		if (this.failing) {
-			return Response.json({ message: "Server Error" }, { status: 500 });
+		// 本物と同じく、Appのインストールのトークンがないと読み書きさせない
+		if (request.authorization !== `Bearer ${this.installationToken}`) {
+			return Response.json({ message: "Bad credentials" }, { status: 401 });
 		}
 		const path = decodeURIComponent(
 			request.url.slice(prefix.length).split("?")[0] ?? "",
@@ -261,6 +323,7 @@ export function createFakeFetch(github: FakeGitHub, discord: FakeDiscord) {
 			method: init?.method ?? "GET",
 			url,
 			body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
+			authorization: new Headers(init?.headers).get("Authorization"),
 		};
 		requests.push(request);
 		const response = github.handle(request) ?? discord.handle(request);

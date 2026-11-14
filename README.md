@@ -93,11 +93,11 @@ Discordで使うだけなら「使い方」だけを読めば足ります。Bot�
 
 ## 構成
 
-| 部分                      | 動くところ                                     | 役割                                                                             |
-| ------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------- |
-| Bot(`src/`)               | Cloudflare Workers                             | DiscordのInteractions(スラッシュコマンド)を受け、GitHubのAPIで台帳にコミットする |
-| 精算(`scripts/settle.ts`) | GitHub Actions(`.github/workflows/settle.yml`) | 前の月の台帳から支払いの一覧を作り、Botのトークンでチャンネルに送る              |
-| 台帳(`ledger/`)           | このリポジトリのmainブランチ                   | 記録と設定。Botと人が書き込み、精算のスクリプトが読む                            |
+| 部分                      | 動くところ                                     | 役割                                                                                |
+| ------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Bot(`src/`)               | Cloudflare Workers                             | DiscordのInteractions(スラッシュコマンド)を受け、GitHub Appとして台帳にコミットする |
+| 精算(`scripts/settle.ts`) | GitHub Actions(`.github/workflows/settle.yml`) | 前の月の台帳から支払いの一覧を作り、Botのトークンでチャンネルに送る                 |
+| 台帳(`ledger/`)           | このリポジトリのmainブランチ                   | 記録と設定。Botと人が書き込み、精算のスクリプトが読む                               |
 
 | ファイル                       | 役割                                                                                                   |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------ |
@@ -105,6 +105,7 @@ Discordで使うだけなら「使い方」だけを読めば足ります。Bot�
 | `src/interactions/`            | 署名を確かめた後のコマンドの振り分けと、`/ogori`・`/channel`・`/seisan` の処理、登録するコマンドの一覧 |
 | `src/ledger/`                  | 台帳のTSVと設定の読み書き、精算の計算、精算の結果のメッセージ                                          |
 | `src/github/contents.ts`       | GitHubのContents APIでのファイルの読み書き(書き込みが競合したら読み直してやり直す)                     |
+| `src/github/app-auth.ts`       | GitHub Appの秘密鍵から、台帳のリポジトリを読み書きするトークンを発行してもらう                         |
 | `src/discord/`                 | DiscordのAPIの呼び出しと、署名の確認                                                                   |
 | `src/texts.ts`                 | Discordに表示する文言                                                                                  |
 | `scripts/register-commands.ts` | スラッシュコマンドの登録                                                                               |
@@ -138,24 +139,28 @@ Discordで使うだけなら「使い方」だけを読めば足ります。Bot�
 - Privileged Gateway Intents は、どれもオフのままでよい(BotはGatewayにつながないため)
 - Interactions Endpoint URL は、Workerをデプロイしてから入れる(3の手順7)
 
-### 2. GitHubのトークンを作る
+### 2. GitHub Appを作る
 
-Botが台帳にコミットするための、Fine-grained personal access tokenを作ります。
+Botは、GitHub Appとして台帳にコミットします。コミットは、人のアカウントではなく、Appの名前に `[bot]` が付いた名前(例 `daichoo[bot]`)で記録されます。Appを作って組織に入れるには、4rtoflowのOwnerの権限が要ります。
 
-1. GitHubの「Settings → Developer settings → Personal access tokens → Fine-grained tokens」で、新しいトークンを作る
-2. Resource owner を `4rtoflow`、Repository access を「Only select repositories」でこのリポジトリだけにする
-3. Repository permissions の Contents を「Read and write」にする
-4. 期限を決めて作り、トークンを控える(期限が来たら作り直して、Workerのシークレットを入れ替える)
+1. GitHubの組織 4rtoflow の「Settings → Developer settings → GitHub Apps」で、「New GitHub App」を押す
+2. GitHub App name に名前(例 `Daichoo`)を、Homepage URL にこのリポジトリのURLを入れる
+3. Webhook の Active のチェックを外す
+4. Repository permissions の Contents を「Read and write」にする
+5. 「Where can this GitHub App be installed?」を「Only on this account」にして、「Create GitHub App」を押す
+6. 作ったAppの画面で Client ID を控え、「Generate a private key」で秘密鍵(`.pem` のファイル)をダウンロードする
+7. 左の「Install App」から 4rtoflow に入れ、「Only select repositories」でこのリポジトリだけを選ぶ
 
-- 組織の設定によっては、組織の管理者がトークンを承認するまで使えない
-- Botのコミットは、トークンを作った人のアカウントで記録される
+- Appの名前は、GitHub全体で重ならないものにする
+- 秘密鍵があれば、Appとして台帳を書き換えられる。人に渡したり、リポジトリに入れたりしない
+- 秘密鍵に期限はない。作り直すときは、Appの画面で新しい鍵を作ってWorkerのシークレットを入れ替えてから、古い鍵を消す
 
 ### 3. Cloudflareにデプロイする
 
 1. [Cloudflare](https://dash.cloudflare.com/sign-up) のアカウントを作る(Workersの無料プランで足りる)
 2. `pnpm install`
-3. `cp .env.example .env` で `.env` を作り、1と2で控えた値を入れる(`.env` はGitに入らない)
-4. `wrangler.jsonc` の `DISCORD_GUILD_ID` に、1で控えたサーバーのIDを書いてコミットする
+3. `cp .env.example .env` で `.env` を作り、1で控えた値と、2でダウンロードした秘密鍵の中身を入れる(`.env` はGitに入らない)
+4. `wrangler.jsonc` の `DISCORD_GUILD_ID` に1で控えたサーバーのIDを、`GITHUB_APP_CLIENT_ID` に2で控えた Client ID を書いて、コミットする
 5. `pnpm exec wrangler login` を実行し、開いたブラウザで許可する
 6. `pnpm exec wrangler deploy --secrets-file .env` を実行する
 7. 表示されたURLの後ろに `/interactions` を付けて、Developer Portalの「General Information」の Interactions Endpoint URL に入れ、保存する(例 `https://daichoo.example.workers.dev/interactions`)
@@ -163,7 +168,9 @@ Botが台帳にコミットするための、Fine-grained personal access token�
 - アカウントに workers.dev のサブドメインがまだないと、6で「Would you like to register a workers.dev subdomain now?」と聞かれる。yes と答えて、サブドメインの名前を決める
 - 初めてのデプロイでは、シークレットを `--secrets-file` で一緒に渡す。Workerがまだないうちは、`wrangler secret put` で入れられないため
 - `.env` の値は、すべてWorkerのシークレットになる。`DISCORD_APPLICATION_ID` はWorkerでは使わないが、入っていても動きは変わらない
+- 秘密鍵は複数行なので、`.env` では全体をダブルクォートで囲む(書き方は `.env.example` にある)
 - 2回目からは `pnpm exec wrangler deploy` だけでよい。シークレットは消えずに残る
+- あとから秘密鍵を入れ替えるときは、`pnpm exec wrangler secret put GITHUB_APP_PRIVATE_KEY < 秘密鍵のファイル` を実行する
 - 7で保存するとき、DiscordがWorkerに確認のリクエストを送る。Public Key が違うと、保存できない
 - Workerのログは、`pnpm exec wrangler tail` で見られる
 
@@ -217,7 +224,7 @@ pnpm settle --dry-run --month 2026-10   # 手元の台帳で精算を試す(送�
 | Botがオフラインに見える                         | DiscordのInteractionsだけで動くBotなので、いつもオフラインに見える。コマンドは使える                                                                   |
 | `/ogori` などのコマンドが出てこない             | `pnpm register-commands` を実行する。`/channel` は、サーバー管理の権限がない人には出ない                                                               |
 | 「このサーバーでは使えません」と出る            | `wrangler.jsonc` の `DISCORD_GUILD_ID` が、そのサーバーのIDか確かめてから、デプロイし直す                                                              |
-| 「台帳に記録できませんでした」と出る            | Cloudflareのダッシュボードで、Workerのログを見る。GitHubのトークンの期限切れなら、作り直して `pnpm exec wrangler secret put GITHUB_TOKEN` で入れ替える |
+| 「台帳に記録できませんでした」と出る            | Cloudflareのダッシュボードで、Workerのログを見る。GitHub Appがこのリポジトリに入っているか、`GITHUB_APP_CLIENT_ID` と秘密鍵が同じAppのものかを確かめる |
 | 「台帳のファイル … の書き方が正しくない」と出る | 返事に出た行番号の行を、GitHubで直す                                                                                                                   |
 | 1日になっても精算の結果が届かない               | 「Actions → Settle」の実行結果を見る。送り先が未設定なら `/channel` を実行し、失敗していたら手で実行する                                               |
 | Settle が「disabled」になっている               | 公開リポジトリでは、60日間アクティビティがないと、GitHubが定期実行を止める。「Actions → Settle」で有効に戻す                                           |

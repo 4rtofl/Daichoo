@@ -17,7 +17,11 @@ function setup() {
 	const github = new FakeGitHub();
 	const { fetch, requests } = createFakeFetch(github, new FakeDiscord());
 	const contents = new GitHubContents(
-		{ repository: REPOSITORY, branch: "main", token: "t" },
+		{
+			repository: REPOSITORY,
+			branch: "main",
+			token: async () => github.installationToken,
+		},
 		fetch,
 		{ retryDelayMs: 0 },
 	);
@@ -47,6 +51,10 @@ describe("GitHubContents", () => {
 			`GET https://api.github.com/repos/${REPOSITORY}/contents/ledger/a.tsv?ref=main`,
 		]);
 		expect(requests[0]?.body).toMatchObject({ branch: "main" });
+		expect(requests.map((r) => r.authorization)).toEqual([
+			`Bearer ${github.installationToken}`,
+			`Bearer ${github.installationToken}`,
+		]);
 	});
 
 	it("ファイルがなければnullを返す", async () => {
@@ -107,7 +115,7 @@ describe("GitHubContents", () => {
 		expect(
 			() =>
 				new GitHubContents(
-					{ repository: "no-slash", branch: "main", token: "t" },
+					{ repository: "no-slash", branch: "main", token: async () => "t" },
 					async () => new Response(),
 				),
 		).toThrowError(/所有者/);
