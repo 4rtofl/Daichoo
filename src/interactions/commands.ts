@@ -21,6 +21,11 @@ export const CHANNEL = {
 	channel: "channel",
 } as const;
 
+export const SEISAN = {
+	name: "seisan",
+	month: "month",
+} as const;
+
 /** メモの長さの上限 */
 export const MAX_MEMO_LENGTH = 100;
 
@@ -70,6 +75,21 @@ export const COMMANDS: RESTPutAPIApplicationGuildCommandsJSONBody = [
 				description: COMMAND_TEXTS.channel.channel,
 				required: true,
 				channel_types: [ChannelType.GuildText, ChannelType.GuildAnnouncement],
+			},
+		],
+	},
+	{
+		type: ApplicationCommandType.ChatInput,
+		name: SEISAN.name,
+		description: COMMAND_TEXTS.seisan.description,
+		options: [
+			{
+				type: ApplicationCommandOptionType.String,
+				name: SEISAN.month,
+				description: COMMAND_TEXTS.seisan.month,
+				required: false,
+				min_length: 7,
+				max_length: 7,
 			},
 		],
 	},

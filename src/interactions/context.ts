@@ -1,6 +1,7 @@
 import type {
 	APIApplicationCommandInteractionDataBasicOption,
 	APIChatInputApplicationCommandGuildInteraction,
+	APIEmbed,
 	APIInteractionResponse,
 	APIUser,
 } from "discord-api-types/v10";
@@ -48,32 +49,35 @@ export function displayName(
 
 /**
  * 時間のかかる処理(GitHubへの書き込みなど)を、保留の返事を返してから続ける。
- * Discordには3秒以内に最初の返事を返す必要があるため。workが返した文で、保留にした返事を書き換える。
- * workが失敗したら、failureの文にする。
+ * Discordには3秒以内に最初の返事を返す必要があるため。workが返した文(または埋め込み)で、
+ * 保留にした返事を書き換える。workが失敗したら、failureの文にする。
  */
 export function respondLater(
 	context: CommandContext,
 	options: { ephemeral: boolean },
-	work: () => Promise<string>,
+	work: () => Promise<string | { embeds: APIEmbed[] }>,
 	failure: string,
 ): APIInteractionResponse {
 	const { interaction, ctx, discord } = context;
 	const finish = async () => {
-		let content: string;
+		let reply: string | { embeds: APIEmbed[] };
 		try {
-			content = await work();
+			reply = await work();
 		} catch (error) {
 			console.error(
 				`/${interaction.data.name} failed (interaction ${interaction.id}):`,
 				error,
 			);
-			content = failure;
+			reply = failure;
 		}
 		try {
 			await discord.editOriginalResponse(
 				interaction.application_id,
 				interaction.token,
-				{ content, allowed_mentions: { parse: [] } },
+				{
+					...(typeof reply === "string" ? { content: reply } : reply),
+					allowed_mentions: { parse: [] },
+				},
 			);
 		} catch (error) {
 			console.error(

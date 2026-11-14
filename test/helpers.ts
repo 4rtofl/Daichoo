@@ -1,5 +1,6 @@
 import type {
 	APIApplicationCommandInteractionDataBasicOption,
+	APIEmbed,
 	APIInteractionDataResolved,
 } from "discord-api-types/v10";
 import type { Env, WorkerContext } from "../src/env.ts";
@@ -201,7 +202,7 @@ export class FakeGitHub {
 
 /** DiscordのREST APIの偽物。送られたメッセージを覚えておく */
 export class FakeDiscord {
-	readonly edits: { content?: string }[] = [];
+	readonly edits: { content?: string; embeds?: APIEmbed[] }[] = [];
 	readonly messages: { channelId: string; body: Record<string, unknown> }[] =
 		[];
 	readonly deleted: string[] = [];
@@ -222,7 +223,9 @@ export class FakeDiscord {
 			path ===
 				`/webhooks/${APPLICATION_ID}/interaction-token/messages/@original`
 		) {
-			this.edits.push(request.body as { content?: string });
+			this.edits.push(
+				request.body as { content?: string; embeds?: APIEmbed[] },
+			);
 			return Response.json({});
 		}
 		const messageMatch = /^\/channels\/(\d+)\/messages$/.exec(path);
