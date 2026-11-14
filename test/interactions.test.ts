@@ -269,6 +269,58 @@ describe("/channel", () => {
 	});
 });
 
+describe("/seisan", () => {
+	const HEADER =
+		"id\trecorded_at\tpayer_id\tpayer_name\tdebtor_id\tdebtor_name\tamount\tmemo\n";
+
+	function seisan(month?: string) {
+		return commandInteraction(
+			"seisan",
+			month === undefined ? [] : [{ type: 3, name: "month", value: month }],
+		);
+	}
+
+	it("今月の台帳から精算し、本人にだけ見える埋め込みで返す", async () => {
+		github.setFile(
+			"ledger/2026-11.tsv",
+			`${HEADER}1\tt\t${PAYER.id}\ta\t${DEBTOR.id}\tb\t1500\t\n`,
+		);
+		const { body } = await send(seisan());
+
+		expect(body).toEqual({ type: 5, data: { flags: 64 } });
+		const embed = discord.edits[0]?.embeds?.[0];
+		expect(embed?.title).toBe("2026年11月の精算(途中)");
+		expect(embed?.url).toBe(
+			"https://github.com/example/ledger/blob/main/ledger/2026-11.tsv",
+		);
+		expect(embed?.description).toContain(
+			`<@${DEBTOR.id}> から <@${PAYER.id}> へ **1,500円**`,
+		);
+		expect(github.commits).toHaveLength(0);
+	});
+
+	it("月を指定すると、その月の精算を出す。終わった月には「途中」を付けない", async () => {
+		await send(seisan("2026-10"));
+		const embed = discord.edits[0]?.embeds?.[0];
+		expect(embed?.title).toBe("2026年10月の精算");
+		expect(embed?.description).toBe("この月の記録はありません。");
+	});
+
+	it("まだ始まっていない月は、台帳を読まずに断る", async () => {
+		const { body, requests } = await send(seisan("2026-12"));
+		expect(body).toMatchObject({ type: 4, data: { flags: 64 } });
+		expect(requests).toHaveLength(0);
+	});
+
+	it("台帳の形が崩れていたら、直す場所を伝える", async () => {
+		github.setFile("ledger/2026-11.tsv", "id\tamount\n1\t100\n");
+		await send(seisan());
+		expect(discord.edits[0]?.content).toMatch(
+			/ledger\/2026-11.tsv の書き方が正しくない.*debtor_id/,
+		);
+	});
+});
+
 describe("そのほか", () => {
 	it("知らないコマンドには、本人にだけ見える返事をする", async () => {
 		const { body } = await send(commandInteraction("unknown", []));

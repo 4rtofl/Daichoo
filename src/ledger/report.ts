@@ -31,6 +31,8 @@ export interface ReportOptions {
 	ledgerFileUrl?: string;
 	/** 埋め込みに表示する時刻 */
 	now: Date;
+	/** trueなら、まだ終わっていない月として、タイトルと前置きを変える(/seisan で今月を見たとき) */
+	inProgress?: boolean;
 }
 
 /** 精算の結果を、送るメッセージの一覧にする。ふつうは1通で、長すぎるときだけ分ける */
@@ -50,7 +52,9 @@ export function buildSettlementMessages(
 		lines = [SETTLEMENT_TEXTS.balanced];
 	} else {
 		lines = [
-			SETTLEMENT_TEXTS.intro,
+			options.inProgress
+				? SETTLEMENT_TEXTS.inProgressIntro
+				: SETTLEMENT_TEXTS.intro,
 			"",
 			...report.transfers.map((transfer) =>
 				SETTLEMENT_TEXTS.transfer(
@@ -64,12 +68,13 @@ export function buildSettlementMessages(
 		];
 	}
 
+	const suffix = options.inProgress ? SETTLEMENT_TEXTS.inProgressSuffix : "";
 	return splitLines(lines, DESCRIPTION_LIMIT).map((description, index) => {
 		const embed: APIEmbed = {
 			title:
-				index === 0
+				(index === 0
 					? SETTLEMENT_TEXTS.title(report.month)
-					: SETTLEMENT_TEXTS.continuedTitle(report.month),
+					: SETTLEMENT_TEXTS.continuedTitle(report.month)) + suffix,
 			description,
 			color: EMBED_COLOR,
 			footer,

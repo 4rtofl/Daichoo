@@ -32,6 +32,16 @@ Discordで使うだけなら「使い方」だけを読めば足ります。Bot�
 - 選んだチャンネルに、Botがお知らせを1通送ってから、設定を保存する
 - Botがそのチャンネルに送れないときは保存せず、Botに必要な権限を返事で伝える
 
+### 今の精算の結果を見る(/seisan)
+
+| オプション | 中身                                 |
+| ---------- | ------------------------------------ |
+| `month`    | 見る月(例 `2026-10`)。省略すると今月 |
+
+- 返事は、実行した本人にだけ見える
+- 毎月1日に届くものと同じ形で、その時点の台帳から精算した結果を出す
+- 今月の結果には、タイトルに「(途中)」が付く。月末までの記録で変わる
+
 ### 毎月の精算
 
 - 毎月1日の9時17分(日本時間)に、GitHub Actionsが前の月の台帳を精算する
@@ -88,15 +98,15 @@ Discordで使うだけなら「使い方」だけを読めば足ります。Bot�
 | 精算(`scripts/settle.ts`) | GitHub Actions(`.github/workflows/settle.yml`) | 前の月の台帳から支払いの一覧を作り、Botのトークンでチャンネルに送る              |
 | 台帳(`ledger/`)           | このリポジトリのmainブランチ                   | 記録と設定。Botと人が書き込み、精算のスクリプトが読む                            |
 
-| ファイル                       | 役割                                                                                        |
-| ------------------------------ | ------------------------------------------------------------------------------------------- |
-| `src/index.ts`                 | Workerのエントリポイント(`/interactions` だけを受け付ける)                                  |
-| `src/interactions/`            | 署名を確かめた後のコマンドの振り分けと、`/ogori`・`/channel` の処理、登録するコマンドの一覧 |
-| `src/ledger/`                  | 台帳のTSVと設定の読み書き、精算の計算、精算の結果のメッセージ                               |
-| `src/github/contents.ts`       | GitHubのContents APIでのファイルの読み書き(書き込みが競合したら読み直してやり直す)          |
-| `src/discord/`                 | DiscordのAPIの呼び出しと、署名の確認                                                        |
-| `src/texts.ts`                 | Discordに表示する文言                                                                       |
-| `scripts/register-commands.ts` | スラッシュコマンドの登録                                                                    |
+| ファイル                       | 役割                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `src/index.ts`                 | Workerのエントリポイント(`/interactions` だけを受け付ける)                                             |
+| `src/interactions/`            | 署名を確かめた後のコマンドの振り分けと、`/ogori`・`/channel`・`/seisan` の処理、登録するコマンドの一覧 |
+| `src/ledger/`                  | 台帳のTSVと設定の読み書き、精算の計算、精算の結果のメッセージ                                          |
+| `src/github/contents.ts`       | GitHubのContents APIでのファイルの読み書き(書き込みが競合したら読み直してやり直す)                     |
+| `src/discord/`                 | DiscordのAPIの呼び出しと、署名の確認                                                                   |
+| `src/texts.ts`                 | Discordに表示する文言                                                                                  |
+| `scripts/register-commands.ts` | スラッシュコマンドの登録                                                                               |
 
 精算のスクリプトは、依存パッケージを使わずに、Node.js 24で `node scripts/settle.ts` としてそのまま動きます。そのため、GitHub Actionsでは `pnpm install` をしません。
 
@@ -162,7 +172,7 @@ Botが台帳にコミットするための、Fine-grained personal access token�
 pnpm register-commands
 ```
 
-`wrangler.jsonc` の `DISCORD_GUILD_ID` のサーバーに、`/ogori` と `/channel` を登録します。コマンドの名前やオプションを変えたときも、もう一度実行します。
+`wrangler.jsonc` の `DISCORD_GUILD_ID` のサーバーに、`/ogori`・`/channel`・`/seisan` を登録します。コマンドの名前やオプションを変えたときも、もう一度実行します。
 
 ### 5. GitHub Actionsにシークレットを入れる
 
@@ -204,7 +214,7 @@ pnpm settle --dry-run --month 2026-10   # 手元の台帳で精算を試す(送�
 | 症状                                            | 直し方                                                                                                                                                 |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Botがオフラインに見える                         | DiscordのInteractionsだけで動くBotなので、いつもオフラインに見える。コマンドは使える                                                                   |
-| `/ogori` や `/channel` が出てこない             | `pnpm register-commands` を実行する。`/channel` は、サーバー管理の権限がない人には出ない                                                               |
+| `/ogori` などのコマンドが出てこない             | `pnpm register-commands` を実行する。`/channel` は、サーバー管理の権限がない人には出ない                                                               |
 | 「このサーバーでは使えません」と出る            | `wrangler.jsonc` の `DISCORD_GUILD_ID` が、そのサーバーのIDか確かめてから、デプロイし直す                                                              |
 | 「台帳に記録できませんでした」と出る            | Cloudflareのダッシュボードで、Workerのログを見る。GitHubのトークンの期限切れなら、作り直して `pnpm exec wrangler secret put GITHUB_TOKEN` で入れ替える |
 | 「台帳のファイル … の書き方が正しくない」と出る | 返事に出た行番号の行を、GitHubで直す                                                                                                                   |

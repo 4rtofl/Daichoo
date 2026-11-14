@@ -157,6 +157,13 @@ export class GitHubContents {
 		}
 	}
 
+	/** GitHubの画面で、ブランチの最新のファイルを開くURL */
+	fileUrl(path: string): string {
+		const encode = (value: string) =>
+			value.split("/").map(encodeURIComponent).join("/");
+		return `https://github.com/${this.repository.repository}/blob/${encode(this.repository.branch)}/${encode(path)}`;
+	}
+
 	private contentsUrl(path: string): string {
 		const encodedPath = path.split("/").map(encodeURIComponent).join("/");
 		return `${GITHUB_API_BASE}/repos/${this.repository.repository}/contents/${encodedPath}`;

@@ -21,6 +21,10 @@ export const COMMAND_TEXTS = {
 		description: "毎月の精算の結果を送るチャンネルの設定(サーバー管理者用)",
 		channel: "精算の結果を送るチャンネル",
 	},
+	seisan: {
+		description: "今の時点の精算の結果を、自分だけに表示",
+		month: "見る月(例 2026-10)。省略すると今月",
+	},
 } as const;
 
 /** /ogori の返事 */
@@ -55,6 +59,16 @@ export const CHANNEL_TEXTS = {
 		`毎月1日に、前の月の精算の結果をこのチャンネルに送ります。\n設定した人: <@${userId}>`,
 } as const;
 
+/** /seisan の返事(精算の結果そのものは SETTLEMENT_TEXTS) */
+export const SEISAN_TEXTS = {
+	invalidMonth: "月は「2026-10」の形で指定してください。",
+	futureMonth: "まだ始まっていない月の精算は表示できません。",
+	failed:
+		"台帳を読めませんでした。少し待ってから、もう一度 /seisan を実行してください。",
+	brokenLedger: (path: string, detail: string) =>
+		`台帳のファイル ${path} の書き方が正しくないため、精算できませんでした(${detail})。GitHubでファイルを直してください。`,
+} as const;
+
 /** どのコマンドにも共通の返事 */
 export const COMMON_TEXTS = {
 	wrongGuild: "このサーバーでは使えません。",
@@ -69,7 +83,11 @@ export const COMMON_TEXTS = {
 export const SETTLEMENT_TEXTS = {
 	title: (month: string) => `${monthLabel(month)}の精算`,
 	continuedTitle: (month: string) => `${monthLabel(month)}の精算(続き)`,
+	/** 終わっていない月を /seisan で見たときに、タイトルの後ろに付ける */
+	inProgressSuffix: "(途中)",
 	intro: "次のとおり支払ってください。",
+	inProgressIntro:
+		"今日までの記録で精算すると、次のとおりです。月末までの記録で変わります。",
 	transfer: (fromId: string, toId: string, amount: number) =>
 		`<@${fromId}> から <@${toId}> へ **${formatYen(amount)}**`,
 	note: "支払いの回数が少なくなるように、貸し借りをまとめています。",
