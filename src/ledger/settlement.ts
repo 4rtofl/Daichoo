@@ -78,6 +78,6 @@ export function computeTransfers(
 }
 
 /** DiscordのID(数字の文字列)を、数として比べる */
-function compareIds(a: string, b: string): number {
+export function compareIds(a: string, b: string): number {
 	return a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
 }

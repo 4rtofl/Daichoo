@@ -293,9 +293,13 @@ describe("/seisan", () => {
 		expect(embed?.url).toBe(
 			"https://github.com/example/ledger/blob/main/ledger/2026-11.tsv",
 		);
-		expect(embed?.description).toContain(
-			`<@${DEBTOR.id}> から <@${PAYER.id}> へ **1,500円**`,
+		expect(embed?.description).toBe(
+			"今日までの記録で精算すると、次のとおりです。月末までの記録で変わります。",
 		);
+		expect(embed?.fields).toEqual([
+			{ name: "b", value: "a へ 1,500円", inline: false },
+			{ name: "a", value: "支払いなし", inline: false },
+		]);
 		expect(github.commits).toHaveLength(0);
 	});
 
