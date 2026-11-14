@@ -31,6 +31,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          # setup-node は package.json の packageManager を見て、pnpmのキャッシュを自動で使おうとする。
+          # ここではpnpmを入れないので、キャッシュを切らないと、pnpmが見つからずに失敗する
+          package-manager-cache: false
       # 精算のスクリプトは、依存パッケージを使わないので、pnpm install は要らない
       - run: node scripts/settle.ts
         env:
