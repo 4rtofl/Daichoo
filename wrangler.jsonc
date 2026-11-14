@@ -1,0 +1,23 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	// DiscordのInteractionsを受け付けるWorker。構成: README.md「構成」
+	"name": "daichoo",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-11-01",
+	"observability": {
+		"enabled": true
+	},
+	"vars": {
+		// Botを使うDiscordサーバーのID。ほかのサーバーからのコマンドは受け付けない。
+		// pnpm register-commands も、このサーバーにコマンドを登録する
+		"DISCORD_GUILD_ID": "1491729493344260176",
+		// 台帳を置くGitHubのリポジトリ(所有者/リポジトリ名)と、書き込むブランチ
+		"GITHUB_REPOSITORY": "4rtoflow/Daichoo",
+		"GITHUB_BRANCH": "main"
+	},
+	// 値は .env に書く(.env.example を参照)。初めてデプロイするときに --secrets-file .env を付けると、
+	// .env の値がWorkerのシークレットとして設定される。あとで変えるときは「pnpm exec wrangler secret put <名前>」を使う
+	"secrets": {
+		"required": ["DISCORD_PUBLIC_KEY", "DISCORD_BOT_TOKEN", "GITHUB_TOKEN"]
+	}
+}

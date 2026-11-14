@@ -1,0 +1,28 @@
+{
+	"name": "daichoo",
+	"private": true,
+	"description": "Discordで記録したおごりを、Gitの台帳に残して、月ごとに精算する",
+	"type": "module",
+	"packageManager": "pnpm@12.15.0",
+	"engines": {
+		"node": ">=24"
+	},
+	"scripts": {
+		"dev": "wrangler dev",
+		"register-commands": "node --env-file-if-exists=.env scripts/register-commands.ts",
+		"settle": "node scripts/settle.ts",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.6.7",
+		"@types/node": "^24.19.2",
+		"discord-api-types": "^0.38.57",
+		"typescript": "^7.0.2",
+		"vitest": "^5.1.0",
+		"wrangler": "^4.161.0"
+	}
+}

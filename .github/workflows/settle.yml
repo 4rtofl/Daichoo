@@ -1,0 +1,41 @@
+# 毎月1日に、前の月の台帳(ledger/)を精算して、支払いの一覧をDiscordに送る。
+# 送り先は、Discordの /channel で設定したチャンネル(ledger/settings.json)。
+# Actionsの画面から手で実行することもできる(月の指定と、送らずに内容だけを確かめる実行ができる)。
+name: Settle
+
+on:
+  schedule:
+    # 毎月1日の9時17分(日本時間)。GitHubは、混み合う毎時0分を避けるよう勧めている
+    - cron: "17 0 1 * *"
+  workflow_dispatch:
+    inputs:
+      month:
+        description: 精算する月(例 2026-10)。空欄なら前の月
+        required: false
+        type: string
+      dry_run:
+        description: Discordには送らず、送る内容をログに出すだけにする
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      # 精算のスクリプトは、依存パッケージを使わないので、pnpm install は要らない
+      - run: node scripts/settle.ts
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          SETTLE_MONTH: ${{ inputs.month }}
+          SETTLE_DRY_RUN: ${{ inputs.dry_run }}
+          # 精算に使った版の台帳を開けるよう、コミットを指したURLにする
+          LEDGER_BLOB_URL: ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}
