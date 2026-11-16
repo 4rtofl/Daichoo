@@ -1,3 +1,4 @@
+import type { GuildMemberFlags } from "discord-api-types/v10";
 import { beforeEach, describe, expect, it } from "vitest";
 import { handleInteractionRequest } from "../src/interactions/handler.ts";
 import { parseEntries } from "../src/ledger/entries.ts";
@@ -110,6 +111,7 @@ describe("/ogori", () => {
 				debtorId: DEBTOR.id,
 				debtorName: "びー",
 				amount: 1200,
+				split: 1,
 				memo: "ラーメン 大盛り",
 			},
 		]);
@@ -196,6 +198,203 @@ describe("/ogori", () => {
 		expect(body).toMatchObject({
 			data: { content: "このサーバーでは使えません。", flags: 64 },
 		});
+		expect(requests).toHaveLength(0);
+	});
+});
+
+describe("/warikan", () => {
+	const SEA = { id: "333333333333333333", username: "sea" };
+	const BOT = { id: "444444444444444444", username: "bot" };
+
+	function resolvedUser(
+		user: { id: string; username: string },
+		globalName: string | null,
+		bot = false,
+	) {
+		return {
+			...user,
+			discriminator: "0",
+			global_name: globalName,
+			avatar: null,
+			...(bot ? { bot } : {}),
+		};
+	}
+
+	/** usersは、user1, user2, … の順に選んだ人 */
+	function warikan(amount: number, users: string[], memo?: string) {
+		return commandInteraction(
+			"warikan",
+			[
+				{ type: 4, name: "amount", value: amount },
+				...users.map((id, index) => ({
+					type: 6 as const,
+					name: `user${index + 1}`,
+					value: id,
+				})),
+				...(memo === undefined
+					? []
+					: [{ type: 3 as const, name: "memo", value: memo }]),
+			],
+			{
+				resolved: {
+					users: {
+						[PAYER.id]: resolvedUser(PAYER, null),
+						[DEBTOR.id]: resolvedUser(DEBTOR, "びー"),
+						[SEA.id]: resolvedUser(SEA, "しー"),
+						[BOT.id]: resolvedUser(BOT, null, true),
+					},
+					members: {
+						[SEA.id]: {
+							nick: "しーちゃん",
+							roles: [],
+							joined_at: "2026-01-01T00:00:00Z",
+							flags: 0 as GuildMemberFlags,
+							permissions: "0",
+						},
+					},
+				},
+			},
+		);
+	}
+
+	it("払った人も含めた人数で、相手ごとに1行ずつ記録し、全員に見える返事をする", async () => {
+		const { body } = await send(warikan(3000, [DEBTOR.id, SEA.id], "焼肉"));
+
+		expect(body).toEqual({ type: 5 });
+		const id = snowflakeAt("2026-11-13T13:38:58Z");
+		const base = {
+			id,
+			recordedAt: "2026-11-13T22:38:58+09:00",
+			payerId: PAYER.id,
+			payerName: "ama",
+			amount: 3000,
+			split: 3,
+			memo: "焼肉",
+		};
+		expect(parseEntries(github.content("ledger/2026-11.tsv") ?? "")).toEqual([
+			{ ...base, debtorId: DEBTOR.id, debtorName: "びー" },
+			{ ...base, debtorId: SEA.id, debtorName: "しーちゃん" },
+		]);
+		expect(github.commits).toHaveLength(1);
+		expect(github.commits[0]?.message).toBe(
+			[
+				"割り勘: ama → びー, しーちゃん 3,000円を3人で(焼肉)",
+				"",
+				`payer: ${PAYER.id}`,
+				`debtors: ${DEBTOR.id}, ${SEA.id}`,
+				`interaction: ${id}`,
+			].join("\n"),
+		);
+		expect(discord.edits).toEqual([
+			{
+				content: `<@${PAYER.id}> が <@${DEBTOR.id}>、<@${SEA.id}> と **3,000円** を3人で割り勘しました(焼肉)。1人あたり1,000円です。台帳に記録しました。`,
+				allowed_mentions: { parse: [] },
+			},
+		]);
+	});
+
+	it("割り切れないときは、返事では1人分を丸めて伝え、台帳には割る前の金額を書く", async () => {
+		await send(warikan(10000, [DEBTOR.id, SEA.id]));
+		expect(
+			parseEntries(github.content("ledger/2026-11.tsv") ?? "").map((e) => [
+				e.amount,
+				e.split,
+			]),
+		).toEqual([
+			[10000, 3],
+			[10000, 3],
+		]);
+		expect(discord.edits[0]?.content).toContain(
+			"1人あたり約3,333円です(1円未満の端数は、月末の精算でまとめて丸めます)。",
+		);
+	});
+
+	it("同じ人を2回選んだり、自分を選んだりしても、1人として数える", async () => {
+		await send(warikan(1000, [DEBTOR.id, PAYER.id, DEBTOR.id]));
+		const entries = parseEntries(github.content("ledger/2026-11.tsv") ?? "");
+		expect(entries.map((e) => [e.debtorId, e.split])).toEqual([[DEBTOR.id, 2]]);
+		expect(discord.edits[0]?.content).toContain(
+			"を2人で割り勘しました。1人あたり500円です。",
+		);
+	});
+
+	it("split の列がない今の台帳に、列を足して記録する。今ある行はそのまま読める", async () => {
+		const current =
+			"id\trecorded_at\tpayer_id\tpayer_name\tdebtor_id\tdebtor_name\tamount\tmemo\n" +
+			`1\tt\t${DEBTOR.id}\tbee\t${PAYER.id}\tama\t1000\tこの世\n`;
+		github.setFile("ledger/2026-11.tsv", current);
+		await send(warikan(3000, [DEBTOR.id, SEA.id]));
+		const text = github.content("ledger/2026-11.tsv") ?? "";
+		expect(text.split("\n").slice(0, 2)).toEqual([
+			"id\trecorded_at\tpayer_id\tpayer_name\tdebtor_id\tdebtor_name\tamount\tsplit\tmemo",
+			`1\tt\t${DEBTOR.id}\tbee\t${PAYER.id}\tama\t1000\t\tこの世`,
+		]);
+		expect(parseEntries(text).map((e) => [e.amount, e.split])).toEqual([
+			[1000, 1],
+			[3000, 3],
+			[3000, 3],
+		]);
+	});
+
+	it("同じコマンドが二重に届いても、1回だけ記録する", async () => {
+		await send(warikan(3000, [DEBTOR.id, SEA.id]));
+		await send(warikan(3000, [DEBTOR.id, SEA.id]));
+		expect(
+			parseEntries(github.content("ledger/2026-11.tsv") ?? ""),
+		).toHaveLength(2);
+		expect(github.commits).toHaveLength(1);
+	});
+
+	it("書き込みがぶつかっても、読み直して記録する", async () => {
+		github.conflictsToInject = 1;
+		await send(warikan(3000, [DEBTOR.id]));
+		expect(
+			parseEntries(github.content("ledger/2026-11.tsv") ?? ""),
+		).toHaveLength(1);
+		expect(discord.edits[0]?.content).toMatch(/台帳に記録しました/);
+	});
+
+	it("台帳の形が崩れていたら、直す場所を伝える", async () => {
+		github.setFile("ledger/2026-11.tsv", "id\tamount\n1\t100\n");
+		await send(warikan(3000, [DEBTOR.id]));
+		expect(discord.edits[0]?.content).toMatch(
+			/ledger\/2026-11.tsv の書き方が正しくない.*debtor_id.*\/warikan/,
+		);
+		expect(github.commits).toHaveLength(0);
+	});
+
+	it("GitHubに書けなかったら、そう伝える", async () => {
+		github.failing = true;
+		await send(warikan(3000, [DEBTOR.id]));
+		expect(discord.edits[0]?.content).toMatch(
+			/記録できませんでした。.*\/warikan/,
+		);
+	});
+
+	it("自分しか選んでいなければ、記録しない", async () => {
+		const { body, requests } = await send(warikan(3000, [PAYER.id]));
+		expect(body).toMatchObject({
+			type: 4,
+			data: {
+				content:
+					"自分のほかに、割り勘した相手を1人以上選んでください。自分は選ばなくても人数に入ります。",
+				flags: 64,
+			},
+		});
+		expect(requests).toHaveLength(0);
+	});
+
+	it("Botを選んでいたら、記録しない", async () => {
+		const { body, requests } = await send(warikan(3000, [DEBTOR.id, BOT.id]));
+		expect(body).toMatchObject({
+			data: { content: "Botとは割り勘できません。", flags: 64 },
+		});
+		expect(requests).toHaveLength(0);
+	});
+
+	it("金額が範囲の外なら、記録しない", async () => {
+		const { body, requests } = await send(warikan(0, [DEBTOR.id]));
+		expect(body).toMatchObject({ type: 4, data: { flags: 64 } });
 		expect(requests).toHaveLength(0);
 	});
 });

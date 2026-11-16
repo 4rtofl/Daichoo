@@ -8,12 +8,13 @@ import {
 } from "../ledger/entries.ts";
 import { COMMON_TEXTS, formatYen, OGORI_TEXTS } from "../texts.ts";
 import { formatJst, monthOf, snowflakeToDate } from "../time.ts";
-import { MAX_MEMO_LENGTH, OGORI } from "./commands.ts";
+import { OGORI } from "./commands.ts";
 import {
 	type CommandContext,
 	displayName,
 	ephemeral,
 	findOption,
+	normalizeMemo,
 	respondLater,
 } from "./context.ts";
 
@@ -52,6 +53,7 @@ export function handleOgori(context: CommandContext): APIInteractionResponse {
 		debtorName:
 			displayName(debtor, resolved?.members?.[debtorId]?.nick) ?? debtorId,
 		amount,
+		split: 1,
 		memo: normalizeMemo(memo),
 	};
 	const path = ledgerPath(monthOf(recordedAt));
@@ -76,14 +78,6 @@ export function handleOgori(context: CommandContext): APIInteractionResponse {
 		},
 		OGORI_TEXTS.failed,
 	);
-}
-
-/** メモの改行や連続した空白を1つの空白にまとめる */
-function normalizeMemo(value: unknown): string {
-	if (typeof value !== "string") {
-		return "";
-	}
-	return value.replace(/\s+/g, " ").trim().slice(0, MAX_MEMO_LENGTH);
 }
 
 /** 記録のコミットメッセージ。1行目で中身が分かるようにし、IDは本文に書く */

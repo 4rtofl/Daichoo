@@ -23,6 +23,7 @@ function entry(
 		debtorId: debtor.id,
 		debtorName: debtor.name,
 		amount,
+		split: 1,
 		memo: "",
 	};
 }
@@ -78,6 +79,21 @@ describe("buildSettlementMessages", () => {
 				allowed_mentions: { parse: [] },
 			},
 		]);
+	});
+
+	it("フッターでは、割り勘の行をまとめて1件と数え、割る前の金額を合計に足す", () => {
+		const split = (debtor: { id: string; name: string }) => ({
+			...entry(AMA, debtor, 3000),
+			id: "warikan",
+			split: 3,
+		});
+		const [message] = build(
+			[split(BEE), split(SEA), entry(BEE, AMA, 500)],
+			[transfer(SEA, AMA, 1000), transfer(BEE, AMA, 500)],
+		);
+		expect(message?.embeds?.[0]?.footer).toEqual({
+			text: "記録 2件、合計 3,500円",
+		});
 	});
 
 	it("1人が複数の人に払うときは、1つのFieldに、額の多い順に並べる", () => {

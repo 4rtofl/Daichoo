@@ -9,6 +9,7 @@ import type { DiscordApi } from "../discord/api.ts";
 import { InteractionResponseType, MessageFlags } from "../discord/constants.ts";
 import type { WorkerContext } from "../env.ts";
 import type { GitHubContents } from "../github/contents.ts";
+import { MAX_MEMO_LENGTH } from "./commands.ts";
 
 /** コマンドの処理に渡すもの */
 export interface CommandContext {
@@ -37,6 +38,14 @@ export function findOption(
 ): APIApplicationCommandInteractionDataBasicOption["value"] | undefined {
 	const option = interaction.data.options?.find((o) => o.name === name);
 	return option && "value" in option ? option.value : undefined;
+}
+
+/** メモの改行や連続した空白を1つの空白にまとめる */
+export function normalizeMemo(value: unknown): string {
+	if (typeof value !== "string") {
+		return "";
+	}
+	return value.replace(/\s+/g, " ").trim().slice(0, MAX_MEMO_LENGTH);
 }
 
 /** Discordでの表示名。サーバーでのニックネーム、表示名、ユーザー名の順に使う */

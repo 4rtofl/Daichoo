@@ -4,7 +4,7 @@ import type {
 	RESTPostAPIChannelMessageJSONBody,
 } from "discord-api-types/v10";
 import { SETTLEMENT_TEXTS } from "../texts.ts";
-import type { LedgerEntry } from "./entries.ts";
+import { type LedgerEntry, summarizeRecords } from "./entries.ts";
 import { compareIds, type Transfer } from "./settlement.ts";
 
 /*
@@ -52,10 +52,8 @@ export function buildSettlementMessages(
 	report: SettlementReport,
 	options: ReportOptions,
 ): RESTPostAPIChannelMessageJSONBody[] {
-	const total = report.entries.reduce((sum, entry) => sum + entry.amount, 0);
-	const footer = {
-		text: SETTLEMENT_TEXTS.footer(report.entries.length, total),
-	};
+	const { count, total } = summarizeRecords(report.entries);
+	const footer = { text: SETTLEMENT_TEXTS.footer(count, total) };
 	const suffix = options.inProgress ? SETTLEMENT_TEXTS.inProgressSuffix : "";
 	// 終わっていない月は、最初の埋め込みのFieldの上に、前置きを書く
 	const intro = options.inProgress
