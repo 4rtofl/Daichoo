@@ -95,6 +95,35 @@ describe("settle", () => {
 		);
 	});
 
+	it("今の形の行と割り勘の行が混ざった台帳も、端数を足し合わせてから偶数丸めで精算する", async () => {
+		writeChannel();
+		const SEA = "333333333333333333";
+		// 10月の初めは split の列がなかった。割り勘を足したときに列が足された台帳
+		writeLedger(
+			"2026-10.tsv",
+			[
+				"id\trecorded_at\tpayer_id\tpayer_name\tdebtor_id\tdebtor_name\tamount\tsplit\tmemo",
+				`1\tt\t${DEBTOR.id}\tbee\t${PAYER.id}\tama\t100\t\t`,
+				`2\tt\t${PAYER.id}\tama\t${DEBTOR.id}\tbee\t1000\t3\t焼肉`,
+				`2\tt\t${PAYER.id}\tama\t${SEA}\tsea\t1000\t3\t焼肉`,
+				`3\tt\t${PAYER.id}\tama\t${DEBTOR.id}\tbee\t1000\t3\t`,
+				`3\tt\t${PAYER.id}\tama\t${SEA}\tsea\t1000\t3\t`,
+				"",
+			].join("\n"),
+		);
+
+		await run();
+
+		// bee: 2000/3 - 100 = 566.66… → 567円、sea: 2000/3 = 666.66… → 667円
+		const embed = firstEmbed();
+		expect(embed?.fields).toEqual([
+			{ name: "sea", value: "ama へ 667円", inline: false },
+			{ name: "bee", value: "ama へ 567円", inline: false },
+			{ name: "ama", value: "支払いなし", inline: false },
+		]);
+		expect(logs[0]).toBe("2026年10月: 記録 3件、支払い 2件");
+	});
+
 	it("日本時間の1日なら、UTCではまだ前の月の日でも、前の月を精算する", async () => {
 		writeChannel();
 		// UTCでは10月31日の15時半だが、日本時間では11月1日の0時半

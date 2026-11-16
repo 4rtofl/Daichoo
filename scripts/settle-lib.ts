@@ -3,7 +3,11 @@ import { join } from "node:path";
 import type { RESTPostAPIChannelMessageJSONBody } from "discord-api-types/v10";
 import { DiscordApi } from "../src/discord/api.ts";
 import type { Fetch } from "../src/http.ts";
-import { ledgerPath, parseEntries } from "../src/ledger/entries.ts";
+import {
+	ledgerPath,
+	parseEntries,
+	summarizeRecords,
+} from "../src/ledger/entries.ts";
 import { buildSettlementMessages } from "../src/ledger/report.ts";
 import { parseSettings, SETTINGS_PATH } from "../src/ledger/settings.ts";
 import { computeBalances, computeTransfers } from "../src/ledger/settlement.ts";
@@ -61,7 +65,7 @@ export async function settle(options: SettleOptions): Promise<SettleResult> {
 	);
 
 	options.log(
-		`${monthLabel(month)}: 記録 ${entries.length}件、支払い ${transfers.length}件`,
+		`${monthLabel(month)}: 記録 ${summarizeRecords(entries).count}件、支払い ${transfers.length}件`,
 	);
 	for (const transfer of transfers) {
 		options.log(

@@ -17,10 +17,11 @@ import { GitHubContents } from "../github/contents.ts";
 import type { Fetch } from "../http.ts";
 import { COMMON_TEXTS } from "../texts.ts";
 import { handleChannel } from "./channel.ts";
-import { CHANNEL, OGORI, SEISAN } from "./commands.ts";
+import { CHANNEL, OGORI, SEISAN, WARIKAN } from "./commands.ts";
 import { type CommandContext, ephemeral } from "./context.ts";
 import { handleOgori } from "./ogori.ts";
 import { handleSeisan } from "./seisan.ts";
+import { handleWarikan } from "./warikan.ts";
 
 /**
  * DiscordからのInteractionを受け付ける。署名を確かめてから、種類ごとに振り分ける。
@@ -95,6 +96,8 @@ function handleCommand(
 		switch (interaction.data.name) {
 			case OGORI.name:
 				return handleOgori(context);
+			case WARIKAN.name:
+				return handleWarikan(context);
 			case CHANNEL.name:
 				return handleChannel(context);
 			case SEISAN.name:

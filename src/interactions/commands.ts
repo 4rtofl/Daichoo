@@ -16,6 +16,20 @@ export const OGORI = {
 	memo: "memo",
 } as const;
 
+/** 割り勘の相手を選ぶオプションの数(user1〜user9)。払った人を合わせて、10人まで割れる */
+export const MAX_WARIKAN_USERS = 9;
+
+export const WARIKAN = {
+	name: "warikan",
+	amount: "amount",
+	/** 相手を選ぶオプションの名前。1つ目(user1)だけが必須 */
+	users: Array.from(
+		{ length: MAX_WARIKAN_USERS },
+		(_, index) => `user${index + 1}`,
+	),
+	memo: "memo",
+} as const;
+
 export const CHANNEL = {
 	name: "channel",
 	channel: "channel",
@@ -57,6 +71,35 @@ export const COMMANDS: RESTPutAPIApplicationGuildCommandsJSONBody = [
 				type: ApplicationCommandOptionType.String,
 				name: OGORI.memo,
 				description: COMMAND_TEXTS.ogori.memo,
+				required: false,
+				max_length: MAX_MEMO_LENGTH,
+			},
+		],
+	},
+	{
+		type: ApplicationCommandType.ChatInput,
+		name: WARIKAN.name,
+		description: COMMAND_TEXTS.warikan.description,
+		// Discordでは、必須のオプションを省略できるものより前に並べる
+		options: [
+			{
+				type: ApplicationCommandOptionType.Integer,
+				name: WARIKAN.amount,
+				description: COMMAND_TEXTS.warikan.amount,
+				required: true,
+				min_value: 1,
+				max_value: MAX_AMOUNT,
+			},
+			...WARIKAN.users.map((name, index) => ({
+				type: ApplicationCommandOptionType.User,
+				name,
+				description: COMMAND_TEXTS.warikan.user(index + 1),
+				required: index === 0,
+			})),
+			{
+				type: ApplicationCommandOptionType.String,
+				name: WARIKAN.memo,
+				description: COMMAND_TEXTS.warikan.memo,
 				required: false,
 				max_length: MAX_MEMO_LENGTH,
 			},

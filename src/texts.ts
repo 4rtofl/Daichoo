@@ -17,6 +17,13 @@ export const COMMAND_TEXTS = {
 		amount: "金額(円)",
 		memo: "何をおごったか(省略できる)",
 	},
+	warikan: {
+		description: "自分が払った割り勘の記録(自分も含めて人数で割る)",
+		amount: "払った金額(円)。割る前の合計",
+		user: (n: number) =>
+			n === 1 ? "割り勘した相手" : `割り勘した相手(${n}人目。省略できる)`,
+		memo: "何の割り勘か(省略できる)",
+	},
 	channel: {
 		description: "毎月の精算の結果を送るチャンネルの設定(サーバー管理者用)",
 		channel: "精算の結果を送るチャンネル",
@@ -42,6 +49,37 @@ export const OGORI_TEXTS = {
 		`台帳のファイル ${path} の書き方が正しくないため、記録できませんでした(${detail})。GitHubでファイルを直してから、もう一度 /ogori を実行してください。`,
 	self: "自分へのおごりは記録できません。",
 	bot: "Botへのおごりは記録できません。",
+	invalidAmount: (max: number) =>
+		`金額は、1円から${formatYen(max)}までの整数で指定してください。`,
+} as const;
+
+/** /warikan の返事 */
+export const WARIKAN_TEXTS = {
+	/**
+	 * 記録した割り勘。shareは1人分を偶数丸めした額で、exactがfalseなら割り切れていない。
+	 * 例「<@A> が <@B>、<@C> と 3,000円を3人で割り勘しました。1人あたり1,000円です。」
+	 */
+	recorded: (record: {
+		payerId: string;
+		debtorIds: readonly string[];
+		amount: number;
+		split: number;
+		share: number;
+		exact: boolean;
+		memo: string;
+	}) =>
+		`<@${record.payerId}> が ${record.debtorIds.map((id) => `<@${id}>`).join("、")} と **${formatYen(record.amount)}** を${record.split}人で割り勘しました${record.memo ? `(${record.memo})` : ""}。` +
+		(record.exact
+			? `1人あたり${formatYen(record.share)}です。`
+			: `1人あたり約${formatYen(record.share)}です(1円未満の端数は、月末の精算でまとめて丸めます)。`) +
+		"台帳に記録しました。",
+	failed:
+		"台帳に記録できませんでした。少し待ってから、もう一度 /warikan を実行してください。",
+	brokenLedger: (path: string, detail: string) =>
+		`台帳のファイル ${path} の書き方が正しくないため、記録できませんでした(${detail})。GitHubでファイルを直してから、もう一度 /warikan を実行してください。`,
+	noOthers:
+		"自分のほかに、割り勘した相手を1人以上選んでください。自分は選ばなくても人数に入ります。",
+	bot: "Botとは割り勘できません。",
 	invalidAmount: (max: number) =>
 		`金額は、1円から${formatYen(max)}までの整数で指定してください。`,
 } as const;

@@ -1,7 +1,8 @@
-import { formatTsvRow, parseTsv, type TsvRow } from "./tsv.ts";
+import { formatTsvRow, insertColumn, parseTsv, type TsvRow } from "./tsv.ts";
 
 /*
- * 台帳の記録。おごった1回を1行として、月ごとのTSV(ledger/2026-11.tsv)に書く。
+ * 台帳の記録。月ごとのTSV(ledger/2026-11.tsv)に、おごられた人1人を1行として書く。
+ * /ogori は1回が1行になる。/warikan は、払った人以外の1人ずつを1行にし、同じ割り勘の行には同じidを書く。
  * 月は、記録した時刻の日本時間で決める。
  */
 
@@ -11,7 +12,10 @@ export const LEDGER_DIR = "ledger";
 /** 金額の上限(円)。桁を打ち間違えたときに、そのまま記録しないため */
 export const MAX_AMOUNT = 1_000_000;
 
-/** おごった1回分の記録 */
+/** 割り勘の人数(split)の上限。台帳を手で直したときの打ち間違いを見つけるため */
+export const MAX_SPLIT = 100;
+
+/** 台帳の1行の記録 */
 export interface LedgerEntry {
 	/** 記録したInteraction(コマンドの実行)のID。同じ記録を二重に書かないための目印にもする */
 	id: string;
@@ -25,8 +29,13 @@ export interface LedgerEntry {
 	debtorId: string;
 	/** おごられた人の表示名(記録した時点のもの) */
 	debtorName: string;
-	/** 金額(円) */
+	/** 金額(円)。割り勘では、割る前の金額 */
 	amount: number;
+	/**
+	 * 割った人数。おごられた人の分は amount ÷ split 円になる。
+	 * /ogori の記録は1。台帳に split の列がない、または空なら1として読む
+	 */
+	split: number;
 	/** 何をおごったか。なければ空 */
 	memo: string;
 }
@@ -40,6 +49,7 @@ const COLUMNS = {
 	debtorId: "debtor_id",
 	debtorName: "debtor_name",
 	amount: "amount",
+	split: "split",
 	memo: "memo",
 } as const satisfies Record<keyof LedgerEntry, string>;
 
@@ -54,6 +64,27 @@ const REQUIRED_COLUMNS: readonly ColumnKey[] = [
 	"debtorId",
 	"amount",
 ];
+
+/**
+ * 記録の件数と、金額の合計。割り勘は複数の行になるが、同じIDの行をまとめて1件と数え、
+ * 金額は割る前の金額(実行したときに入れた金額)を1回だけ足す。
+ */
+export function summarizeRecords(entries: readonly LedgerEntry[]): {
+	count: number;
+	total: number;
+} {
+	const amounts = new Map<string, number>();
+	for (const entry of entries) {
+		if (!amounts.has(entry.id)) {
+			amounts.set(entry.id, entry.amount);
+		}
+	}
+	let total = 0;
+	for (const amount of amounts.values()) {
+		total += amount;
+	}
+	return { count: amounts.size, total };
+}
 
 /** その月の台帳のファイルのパス */
 export function ledgerPath(month: string): string {
@@ -86,6 +117,7 @@ function readRows(
 			debtorId: value("debtorId"),
 			debtorName: value("debtorName"),
 			amount: Number(value("amount")),
+			split: value("split") === "" ? 1 : Number(value("split")),
 			memo: value("memo"),
 		};
 		const problem = validateEntry(entry);
@@ -96,39 +128,68 @@ function readRows(
 	});
 }
 
-/**
- * 台帳のTSVの末尾に、記録を1行足した文字列を返す。ファイルがまだなければ、見出しの行から作る。
- * 同じIDの記録がすでにあれば、足さずにnullを返す(書き込みをやり直したときに、二重に記録しないため)。
- * 見出しの列の並びが手で変えられていても、その並びに合わせて書く。
- * 今ある行に正しくないものがあれば、足さずにエラーにする。そのままでは月末の精算が失敗するので、
- * 記録した人に、直す行をすぐ伝えるため。
- */
+/** 台帳のTSVの末尾に、記録を1行足す(appendEntries を1行で使う) */
 export function appendEntry(
 	current: string | null,
 	entry: LedgerEntry,
 ): string | null {
-	const problem = validateEntry(entry);
-	if (problem) {
-		throw new LedgerFormatError(problem);
+	return appendEntries(current, [entry]);
+}
+
+/**
+ * 台帳のTSVの末尾に、記録を足した文字列を返す。ファイルがまだなければ、見出しの行から作る。
+ * 足す記録と同じIDの記録がすでにあれば、足さずにnullを返す(書き込みをやり直したときに、二重に記録しないため)。
+ * 割り勘の記録は複数の行になるが、同じIDなので、まとめて足すか、まとめて足さないかのどちらかになる。
+ * 見出しの列の並びが手で変えられていても、その並びに合わせて書く。
+ * 見出しに split の列がない台帳(割り勘を足す前の形)に割り勘を足すときは、amount の後ろに split の列を足す。
+ * 今ある行の split は空になり、1として読まれる。
+ * 今ある行に正しくないものがあれば、足さずにエラーにする。そのままでは月末の精算が失敗するので、
+ * 記録した人に、直す行をすぐ伝えるため。
+ */
+export function appendEntries(
+	current: string | null,
+	entries: readonly LedgerEntry[],
+): string | null {
+	for (const entry of entries) {
+		const problem = validateEntry(entry);
+		if (problem) {
+			throw new LedgerFormatError(problem);
+		}
 	}
+	const rows = (order: readonly (ColumnKey | null)[]) =>
+		entries.map((entry) => `${formatEntryRow(entry, order)}\n`).join("");
 	if (current === null || current.trim() === "") {
-		return `${formatTsvRow(COLUMN_KEYS.map((key) => COLUMNS[key]))}\n${formatEntryRow(entry, COLUMN_KEYS)}\n`;
+		return `${formatTsvRow(COLUMN_KEYS.map((key) => COLUMNS[key]))}\n${rows(COLUMN_KEYS)}`;
 	}
 
-	const [header, ...rows] = parseTsv(current);
+	const [header, ...existingRows] = parseTsv(current);
 	if (!header) {
 		throw new LedgerFormatError("台帳に見出しの行がありません");
 	}
-	const existing = readRows(readHeader(header.values), rows);
-	if (existing.some((e) => e.id === entry.id)) {
+	const columns = readHeader(header.values);
+	const existing = readRows(columns, existingRows);
+	const ids = new Set(entries.map((entry) => entry.id));
+	if (existing.some((e) => ids.has(e.id))) {
 		return null;
 	}
+
+	let text = current;
+	let headerValues = header.values;
+	const amountIndex = columns.get("amount");
+	if (
+		!columns.has("split") &&
+		amountIndex !== undefined &&
+		entries.some((entry) => entry.split !== 1)
+	) {
+		text = insertColumn(text, amountIndex + 1, COLUMNS.split);
+		headerValues = parseTsv(text)[0]?.values ?? [];
+	}
 	// 見出しの並びに合わせる。台帳で使っていない列(人が足した列)は空にする
-	const order = header.values.map(
+	const order = headerValues.map(
 		(name) => COLUMN_KEYS.find((key) => COLUMNS[key] === name.trim()) ?? null,
 	);
-	const separator = current.endsWith("\n") ? "" : "\n";
-	return `${current}${separator}${formatEntryRow(entry, order)}\n`;
+	const separator = text.endsWith("\n") ? "" : "\n";
+	return `${text}${separator}${rows(order)}`;
 }
 
 function formatEntryRow(
@@ -175,6 +236,13 @@ function validateEntry(entry: LedgerEntry): string | null {
 		entry.amount > MAX_AMOUNT
 	) {
 		return `amount は1から${MAX_AMOUNT}までの整数にしてください`;
+	}
+	if (
+		!Number.isSafeInteger(entry.split) ||
+		entry.split < 1 ||
+		entry.split > MAX_SPLIT
+	) {
+		return `split は1から${MAX_SPLIT}までの整数にしてください(空なら1として読みます)`;
 	}
 	return null;
 }

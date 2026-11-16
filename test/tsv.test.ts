@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTsvRow, parseTsv } from "../src/ledger/tsv.ts";
+import { formatTsvRow, insertColumn, parseTsv } from "../src/ledger/tsv.ts";
 
 describe("formatTsvRow", () => {
 	it("タブで区切る。カンマやダブルクォートはそのまま書く", () => {
@@ -34,5 +34,31 @@ describe("parseTsv", () => {
 	it("空のファイルは、行なしとして読む", () => {
 		expect(parseTsv("")).toEqual([]);
 		expect(parseTsv("\n\n")).toEqual([]);
+	});
+});
+
+describe("insertColumn", () => {
+	it("見出しに列を足し、ほかの行には同じ位置に空の値を足す", () => {
+		expect(insertColumn("a\tb\tc\n1\t2\t3\n", 2, "x")).toBe(
+			"a\tb\tx\tc\n1\t2\t\t3\n",
+		);
+	});
+
+	it("値が足りない行と空の行は変えない", () => {
+		expect(insertColumn("a\tb\tc\n1\t2\n\n4\t5\t6", 2, "x")).toBe(
+			"a\tb\tx\tc\n1\t2\n\n4\t5\t\t6",
+		);
+	});
+
+	it("値が多い行も、足す位置より後ろの値をずらす", () => {
+		expect(insertColumn("a\tb\n1\t2\t9\n", 1, "x")).toBe(
+			"a\tx\tb\n1\t\t2\t9\n",
+		);
+	});
+
+	it("改行の種類と先頭のBOMを残す", () => {
+		expect(insertColumn("\uFEFFa\tb\r\n1\t2\r\n", 1, "x")).toBe(
+			"\uFEFFa\tx\tb\r\n1\t\t2\r\n",
+		);
 	});
 });
