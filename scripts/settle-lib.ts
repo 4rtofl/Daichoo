@@ -26,7 +26,7 @@ export interface SettleOptions {
 	dryRun: boolean;
 	/** Botのトークン(送るときに要る) */
 	botToken?: string;
-	/** GitHubでファイルを開くURLの、パスの手前までの部分(例: https://github.com/4rtoflow/Daichoo/blob/<コミット>) */
+	/** GitHubでファイルを開くURLの、パスの手前までの部分(例: https://github.com/4rtofl/Daichoo/blob/<コミット>) */
 	blobBaseUrl?: string;
 	now: Date;
 	fetch: Fetch;

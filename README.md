@@ -171,15 +171,15 @@ AさんがBさんとCさんとの割り勘で3,000円を払った記録は、次
 
 ### 2. GitHub Appを作る
 
-Botは、GitHub Appとして台帳にコミットします。コミットは、人のアカウントではなく、Appの名前に `[bot]` が付いた名前(例 `daichoo[bot]`)で記録されます。Appを作って組織に入れるには、4rtoflowのOwnerの権限が要ります。
+Botは、GitHub Appとして台帳にコミットします。コミットは、人のアカウントではなく、Appの名前に `[bot]` が付いた名前(例 `daichoo[bot]`)で記録されます。Appを作って組織に入れるには、4rtoflのOwnerの権限が要ります。
 
-1. GitHubの組織 4rtoflow の「Settings → Developer settings → GitHub Apps」で、「New GitHub App」を押す
+1. GitHubの組織 4rtofl の「Settings → Developer settings → GitHub Apps」で、「New GitHub App」を押す
 2. GitHub App name に名前(例 `Daichoo`)を、Homepage URL にこのリポジトリのURLを入れる
 3. Webhook の Active のチェックを外す
 4. Repository permissions の Contents を「Read and write」にする
 5. 「Where can this GitHub App be installed?」を「Only on this account」にして、「Create GitHub App」を押す
 6. 作ったAppの画面で Client ID を控え、「Generate a private key」で秘密鍵(`.pem` のファイル)をダウンロードする
-7. 左の「Install App」から 4rtoflow に入れ、「Only select repositories」でこのリポジトリだけを選ぶ
+7. 左の「Install App」から 4rtofl に入れ、「Only select repositories」でこのリポジトリだけを選ぶ
 
 - Appの名前は、GitHub全体で重ならないものにする
 - 秘密鍵があれば、Appとして台帳を書き換えられる。人に渡したり、リポジトリに入れたりしない

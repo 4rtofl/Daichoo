@@ -14,7 +14,7 @@ import { type Fetch, sleep } from "../http.ts";
 const DISCORD_API_BASE = "https://discord.com/api/v10";
 
 /** DiscordのAPIに送るUser-Agent。Botは「DiscordBot (URL, バージョン)」の形にする */
-const USER_AGENT = "DiscordBot (https://github.com/4rtoflow/Daichoo, 0.1.0)";
+const USER_AGENT = "DiscordBot (https://github.com/4rtofl/Daichoo, 0.1.0)";
 
 /** 利用制限(429)に当たったときに、待ってやり直す回数の上限 */
 const MAX_RATE_LIMIT_RETRIES = 3;
